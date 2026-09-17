@@ -124,13 +124,17 @@ class Console
      */
     protected function fireAbstract($abstract, $callBack = null)
     {
-        $callBack = $callBack ?: function () use ($abstract) {
+        if ($callBack) {
+            $this->container->scoped($abstract, $callBack);
+
             return $this->container->make($abstract);
-        };
+        }
 
-        $this->container->scoped($abstract, $callBack);
+        $instance = $this->container->make($abstract);
 
-        return $this->container->make($abstract);
+        $this->container->instance($abstract, $instance);
+
+        return $instance;
     }
 
     /**
