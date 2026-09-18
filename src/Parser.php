@@ -17,20 +17,33 @@ class Parser
 
         $arguments = [];
 
+        $endOfOptions = false;
+
         foreach ($tokens as $arg) {
-            if (strpos($arg, '-') === 0) {
-                $key = preg_replace_callback(
-                    '/(--)?\w+(?:-?\w*)?(?:_?\w*)?(?:[=|\s][\w-]+)?|(-)+\w+(?:[=|\s][\w-]+)?/',
-                    function ($matches) {
-                        return str_replace($matches[1], '', $matches[0]);
-                    },
-                    $arg
-                );
+            // C4 — a bare "--" ends option parsing: every token after it
+            // is a positional argument even if it looks like an option
+            // (starts with "-"). The "--" token itself is consumed, not
+            // kept as an argument.
+            if (!$endOfOptions && $arg === '--') {
+                $endOfOptions = true;
+
+                continue;
+            }
+
+            if (!$endOfOptions && strpos($arg, '-') === 0) {
+                // Strip the leading dashes: "--debug=false" -> "debug=false",
+                // "-v" -> "v". The previous regex-based approach left
+                // single-dash short options with their dash still attached
+                // (so option('v') could never find "-v"), and raised an
+                // "Undefined array key 1" warning whenever the token held
+                // anything the pattern matched a second time, such as a
+                // quoted value containing spaces.
+                $key = ltrim($arg, '-');
 
                 $value = 'true';
 
                 if (strpos($key, '=') !== false) {
-                    [$key, $value] = explode('=', $key, 2);
+                    list($key, $value) = explode('=', $key, 2);
                 }
 
                 $options[$key] = is_a_to($value);

@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  # composer.json declares "php": ">=5.5". PHPUnit 9.6 (require-dev) needs
+  # PHP >= 7.3, so anything below that can only be syntax-checked, never run
+  # through composer install + phpunit — see the "test" job below.
+  #
+  # 5.5 itself has no official Docker image (it is long EOL and was removed
+  # from Docker Hub), so 5.6 is the lowest version this can actually verify.
+  # Runtime dependency resolution WAS confirmed for the declared 5.5 floor
+  # via `composer update --dry-run` with config.platform.php=5.5.38, which
+  # resolves league/climate to 3.2.4.
+  #
+  # These run via plain `docker run` rather than GitHub's `container:` job
+  # option: old PHP images predate the Node.js runtime the Actions runner
+  # injects into job containers, which would break actions/checkout.
+  syntax-check:
+    name: "Syntax check (PHP ${{ matrix.php }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 5.6 and 7.0 only: both were verified locally. 7.2 was left out
+        # rather than added unverified — it sits between 7.0 here and 7.4
+        # in the test job, so the coverage gap is negligible.
+        php: ['5.6', '7.0']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint every file under src/ against PHP ${{ matrix.php }}
+        run: |
+          docker run --rm -v "$PWD":/app -w /app php:${{ matrix.php }}-cli sh -c '
+            status=0
+            for f in $(find src -name "*.php" | sort); do
+              echo "== $f =="
+              php -l "$f" || status=1
+            done
+            exit $status
+          '
+
+  test:
+    name: "PHPUnit (PHP ${{ matrix.php }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Floor is 7.4, not 7.0: PHPUnit 9.6 needs PHP >= 7.3.
+        #
+        # Ceiling is 8.3 for now — NOT because of anything in this package.
+        # wilkques/php-helper and wilkques/container both had implicit-
+        # nullable-parameter deprecations on PHP 8.4 (array_pluck() and
+        # setInstance() respectively), which this package's own suite
+        # inherits transitively since a passing command's argv is threaded
+        # through both. Both have been fixed locally (type hints dropped,
+        # since both packages target PHP 5.x where "?Type" isn't valid
+        # syntax) and verified directly against the fixed source — but this
+        # job installs dependencies via `composer install` from Packagist,
+        # which still serves the old, unfixed tagged releases until those
+        # two packages actually publish a new version. Re-add '8.4' and
+        # '8.5' here once wilkques/php-helper and wilkques/container have
+        # tagged releases containing those fixes; no other change should be
+        # needed since composer.json already allows any wilkques/container
+        # >=5.0.0.
+        php: ['7.4', '8.0', '8.1', '8.2', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run test suite
+        run: vendor/bin/phpunit -c phpunit.xml
