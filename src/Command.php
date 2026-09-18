@@ -29,6 +29,16 @@ abstract class Command implements Commandable
     protected $arguments = array();
 
     /**
+     * Stream read by ask()/confirm()/choice(). Defaults lazily to STDIN
+     * (real interactive use), but is swappable via setInputStream() so
+     * tests can feed canned answers through a php://memory stream instead
+     * of the process's real stdin.
+     *
+     * @var resource|null
+     */
+    protected $inputStream;
+
+    /**
      * Command Explanation
      *
      * @var string
@@ -402,5 +412,255 @@ abstract class Command implements Commandable
         }
 
         return $definitions;
+    }
+
+    /**
+     * Write a plain line to stdout, no color.
+     *
+     * These write to stdout, not stderr — unlike Console's own N20
+     * diagnostics (unknown command, bad arguments, ...), which are
+     * framework-level errors about the invocation itself. This is a
+     * command's own output, the same category of thing as any other line
+     * it might echo.
+     *
+     * @param string $message
+     *
+     * @return void
+     */
+    public function line($message)
+    {
+        echo $message . PHP_EOL;
+    }
+
+    /**
+     * @param string $message
+     *
+     * @return void
+     */
+    public function info($message)
+    {
+        $this->coloredLine($message, '32'); // green
+    }
+
+    /**
+     * @param string $message
+     *
+     * @return void
+     */
+    public function error($message)
+    {
+        $this->coloredLine($message, '31'); // red
+    }
+
+    /**
+     * @param string $message
+     *
+     * @return void
+     */
+    public function warn($message)
+    {
+        $this->coloredLine($message, '33'); // yellow
+    }
+
+    /**
+     * @param string $message
+     *
+     * @return void
+     */
+    public function comment($message)
+    {
+        $this->coloredLine($message, '36'); // cyan
+    }
+
+    /**
+     * @param string $message
+     * @param string $colorCode SGR foreground color code, e.g. "32" for green
+     *
+     * @return void
+     */
+    protected function coloredLine($message, $colorCode)
+    {
+        if (!$this->supportsColors()) {
+            $this->line($message);
+
+            return;
+        }
+
+        echo "\033[" . $colorCode . "m" . $message . "\033[0m" . PHP_EOL;
+    }
+
+    /**
+     * Whether stdout is an interactive terminal that will render ANSI SGR
+     * codes as colors rather than the raw escape bytes — false whenever
+     * output is piped/redirected (a log file, `| cat`, a CI job, this
+     * library's own tests capturing output...), or when the caller asks
+     * for plain output via NO_COLOR (https://no-color.org).
+     *
+     * @return bool
+     */
+    protected function supportsColors()
+    {
+        if (getenv('NO_COLOR') !== false) {
+            return false;
+        }
+
+        if (!defined('STDOUT')) {
+            return false;
+        }
+
+        if (function_exists('stream_isatty')) {
+            // PHP 7.2+
+            return (bool) @stream_isatty(STDOUT);
+        }
+
+        if (function_exists('posix_isatty')) {
+            // ext-posix, when installed
+            return (bool) @posix_isatty(STDOUT);
+        }
+
+        return false;
+    }
+
+    /**
+     * Prompt for a line of input and return it, trimmed. Returns
+     * $default if the answer is empty (just Enter) or input is closed
+     * (EOF on the input stream).
+     *
+     * @param string      $question
+     * @param string|null $default
+     *
+     * @return string|null
+     */
+    public function ask($question, $default = null)
+    {
+        echo $question;
+
+        if ($default !== null && $default !== '') {
+            echo ' [' . $default . ']';
+        }
+
+        echo ': ';
+
+        $answer = $this->readLine();
+
+        if ($answer === null || $answer === '') {
+            return $default;
+        }
+
+        return $answer;
+    }
+
+    /**
+     * Prompt for a yes/no answer.
+     *
+     * Accepts "y"/"yes" (case-insensitive) as yes and anything else
+     * (including a blank answer) falls through to $default; only an
+     * explicit "y"/"yes" ever returns true unless $default itself is
+     * true and the answer is blank.
+     *
+     * @param string $question
+     * @param bool   $default
+     *
+     * @return bool
+     */
+    public function confirm($question, $default = false)
+    {
+        echo $question . ' (yes/no) [' . ($default ? 'yes' : 'no') . ']: ';
+
+        $answer = $this->readLine();
+
+        if ($answer === null || $answer === '') {
+            return (bool) $default;
+        }
+
+        $answer = strtolower($answer);
+
+        return $answer === 'y' || $answer === 'yes';
+    }
+
+    /**
+     * Prompt to pick one of $choices, re-asking until a valid answer is
+     * given. An answer is valid if it matches a choice's array key
+     * (typically its numeric index) or its value exactly; the matching
+     * VALUE is what's returned either way.
+     *
+     * @param string     $question
+     * @param array      $choices
+     * @param string|int|null $default array key used when the answer is blank
+     *
+     * @return mixed
+     */
+    public function choice($question, array $choices, $default = null)
+    {
+        echo $question . PHP_EOL;
+
+        foreach ($choices as $key => $choice) {
+            echo '  [' . $key . '] ' . $choice . PHP_EOL;
+        }
+
+        while (true) {
+            echo '> ';
+
+            $answer = $this->readLine();
+
+            if (($answer === null || $answer === '') && $default !== null && array_key_exists($default, $choices)) {
+                return $choices[$default];
+            }
+
+            if ($answer !== null && array_key_exists($answer, $choices)) {
+                return $choices[$answer];
+            }
+
+            if (in_array($answer, $choices, true)) {
+                return $answer;
+            }
+
+            $this->error('Invalid choice, please try again.');
+        }
+    }
+
+    /**
+     * Swap the stream ask()/confirm()/choice() read from — real
+     * interactive use never needs this (it defaults lazily to STDIN),
+     * it exists so tests can feed canned answers through a php://memory
+     * stream.
+     *
+     * @param resource $stream
+     *
+     * @return static
+     */
+    public function setInputStream($stream)
+    {
+        $this->inputStream = $stream;
+
+        return $this;
+    }
+
+    /**
+     * @return resource
+     */
+    protected function getInputStream()
+    {
+        if ($this->inputStream === null) {
+            $this->inputStream = defined('STDIN') ? STDIN : fopen('php://stdin', 'r');
+        }
+
+        return $this->inputStream;
+    }
+
+    /**
+     * Read one line from the input stream, trimmed. Returns null at EOF.
+     *
+     * @return string|null
+     */
+    protected function readLine()
+    {
+        $line = fgets($this->getInputStream());
+
+        if ($line === false) {
+            return null;
+        }
+
+        return trim($line);
     }
 }
