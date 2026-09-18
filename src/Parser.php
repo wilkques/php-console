@@ -13,9 +13,9 @@ class Parser
      */
     public static function parser($tokens)
     {
-        $options = [];
+        $options = array();
 
-        $arguments = [];
+        $arguments = array();
 
         $endOfOptions = false;
 

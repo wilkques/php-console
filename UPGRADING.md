@@ -210,6 +210,13 @@ which its own docblock advertised — was a hard `TypeError`. Both are fixed.
 exists from container v5. 3.x declared `>=4.0.0`, which would have let composer
 install an incompatible combination.
 
-Also note the package's own PHP floor is `>=5.5`. 3.4.0 declared `>=5.5` while
-actually using PHP 7.1 syntax (short list destructuring); that has been
-corrected so the declared floor is now truthful.
+Also note the package's own PHP floor is now `>=5.3`. 3.4.0 declared `>=5.5`
+while actually using PHP 7.1 syntax (short list destructuring); that was
+corrected first to a truthful `>=5.5`, then dropped further to `>=5.3` by
+replacing league/climate's `CLImate::table()` (a hard runtime dependency
+declaring `php: ^7.3 || ^8.0`, which silently overrode whatever floor
+composer.json itself claimed) with a self-contained formatter
+(`src/Support/HelperListFormatter.php`), and converting the handful of
+PHP 5.4+ constructs (`[]` short arrays, `func()['key']` call-result
+dereferencing, `array_column()`) still in `src/` at the time down to their
+PHP 5.3-safe equivalents.

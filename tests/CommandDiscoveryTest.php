@@ -21,29 +21,25 @@ class CommandDiscoveryTest extends TestCase
     /** @var string */
     private $composerPath;
 
-    protected function setUp(): void
+    protected function additionalSetUp()
     {
-        parent::setUp();
-
         $this->composerPath = tempnam(sys_get_temp_dir(), 'console_test_composer_') . '.json';
 
-        file_put_contents($this->composerPath, json_encode([
-            'autoload' => [
-                'psr-4' => [
+        file_put_contents($this->composerPath, json_encode(array(
+            'autoload' => array(
+                'psr-4' => array(
                     'Wilkques\\Console\\Tests\\Fixtures\\ConsoleCommands\\' => __DIR__ . '/Fixtures/ConsoleCommands/',
                     'Wilkques\\Console\\Tests\\Fixtures\\DuplicateConsoleCommands\\' => __DIR__ . '/Fixtures/DuplicateConsoleCommands/',
                     'Wilkques\\Console\\Tests\\Fixtures\\MixedConsoleCommands\\' => __DIR__ . '/Fixtures/MixedConsoleCommands/',
                     'Wilkques\\Console\\Tests\\Fixtures\\EmptyConsoleCommands\\' => __DIR__ . '/Fixtures/EmptyConsoleCommands/',
-                ],
-            ],
-        ]));
+                ),
+            ),
+        )));
     }
 
-    protected function tearDown(): void
+    protected function additionalTearDown()
     {
         @unlink($this->composerPath);
-
-        parent::tearDown();
     }
 
     // -----------------------------------------------------------------
@@ -71,7 +67,7 @@ class CommandDiscoveryTest extends TestCase
 
     public function test_boot_raises_duplicate_command_exception_for_colliding_names()
     {
-        $this->expectException(DuplicateCommandException::class);
+        $this->expectExceptionCompat('Wilkques\Console\Exceptions\DuplicateCommandException');
 
         $console = $this->makeConsole()
             ->setCommandRootPath(__DIR__ . '/Fixtures/DuplicateConsoleCommands')
@@ -82,11 +78,11 @@ class CommandDiscoveryTest extends TestCase
 
     public function test_register_raises_duplicate_command_exception_for_colliding_names()
     {
-        $this->expectException(DuplicateCommandException::class);
+        $this->expectExceptionCompat('Wilkques\Console\Exceptions\DuplicateCommandException');
 
         $console = $this->makeConsole();
-        $console->register(\Wilkques\Console\Tests\Fixtures\DuplicateConsoleCommands\FooCommand::class);
-        $console->register(\Wilkques\Console\Tests\Fixtures\DuplicateConsoleCommands\BarCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\DuplicateConsoleCommands\FooCommand');
+        $console->register('Wilkques\Console\Tests\Fixtures\DuplicateConsoleCommands\BarCommand');
     }
 
     // -----------------------------------------------------------------
@@ -97,8 +93,8 @@ class CommandDiscoveryTest extends TestCase
     {
         $console = $this->makeConsole();
 
-        $console->register(SuccessCommand::class);
-        $console->register(FailingCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\SuccessCommand');
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\FailingCommand');
 
         $helpers = $this->peek($console, 'helpers');
         $mapping = $this->peek($console, 'commandMapping');
@@ -115,37 +111,42 @@ class CommandDiscoveryTest extends TestCase
     // -----------------------------------------------------------------
 
     /**
-     * @dataProvider commandClassProvider
+     * Not a @dataProvider: PHPUnit's doc-comment annotation providers were
+     * eventually replaced by PHP 8+-only `#[DataProvider]` attributes,
+     * which this suite (running under PHP 5.5+, "phpunit/phpunit": "*")
+     * can't rely on either — a plain loop over the same cases works
+     * identically on every PHPUnit version.
      */
-    public function test_get_command_class_only_strips_the_leading_psr4_prefix($path, $expectedClass)
+    public function test_get_command_class_only_strips_the_leading_psr4_prefix()
     {
         $console = $this->makeConsole()->setComposerPath(__DIR__ . '/Fixtures/composer-app-map.json');
 
-        $class = $this->invoke($console, 'getCommandClass', [$path]);
-
-        $this->assertSame($expectedClass, $class);
-    }
-
-    public function commandClassProvider()
-    {
-        return [
-            'apple (namespace is a substring of the class name)' => [
+        $cases = array(
+            'apple (namespace is a substring of the class name)' => array(
                 'app/Console/AppleCommand.php',
                 'App\\Console\\AppleCommand',
-            ],
-            'app-version (namespace prefix reappears mid-name)' => [
+            ),
+            'app-version (namespace prefix reappears mid-name)' => array(
                 'app/Console/AppVersionCommand.php',
                 'App\\Console\\AppVersionCommand',
-            ],
-            'nested Apps directory (namespace reappears as a path segment)' => [
+            ),
+            'nested Apps directory (namespace reappears as a path segment)' => array(
                 'app/Console/Apps/SyncCommand.php',
                 'App\\Console\\Apps\\SyncCommand',
-            ],
-            'member (no accidental re-match, correct today only by luck)' => [
+            ),
+            'member (no accidental re-match, correct today only by luck)' => array(
                 'app/Console/MemberCommand.php',
                 'App\\Console\\MemberCommand',
-            ],
-        ];
+            ),
+        );
+
+        foreach ($cases as $label => $case) {
+            list($path, $expectedClass) = $case;
+
+            $class = $this->invoke($console, 'getCommandClass', array($path));
+
+            $this->assertSame($expectedClass, $class, $label);
+        }
     }
 
     // -----------------------------------------------------------------
@@ -160,7 +161,7 @@ class CommandDiscoveryTest extends TestCase
 
         $console->boot();
 
-        $this->assertSame([], $this->peek($console, 'helpers'));
+        $this->assertSame(array(), $this->peek($console, 'helpers'));
     }
 
     // -----------------------------------------------------------------
@@ -191,7 +192,7 @@ class CommandDiscoveryTest extends TestCase
     {
         $console = $this->makeConsole();
 
-        $console->register(SuccessCommand::class, function () {
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\SuccessCommand', function () {
             return new SuccessCommand;
         });
 
@@ -205,7 +206,7 @@ class CommandDiscoveryTest extends TestCase
         $console = $this->makeConsole();
 
         try {
-            $console->register(SuccessCommand::class, new SuccessCommand);
+            $console->register('Wilkques\Console\Tests\Fixtures\Commands\SuccessCommand', new SuccessCommand);
 
             $mapping = $this->peek($console, 'commandMapping');
 
@@ -246,16 +247,28 @@ use Wilkques\Console\Console;
 use Wilkques\Container\Container;
 use Wilkques\Filesystem\Filesystem;
 \$console = new Console(new Container, new Filesystem);
-exit(\$console->handle(['nope:such']));
+exit(\$console->handle(array('nope:such')));
 PHP;
 
+        // proc_open()'s array-form command (an argv-style list instead of a
+        // shell string) is PHP 7.4+ only; composer.json's floor here is
+        // 5.3, so build the string form by hand with escapeshellarg(),
+        // which has worked the same way since forever.
+        //
+        // PHP_BINARY itself is only defined from PHP 5.4+ — on 5.3 an
+        // undefined constant silently evaluates to its own name as a
+        // string ("PHP_BINARY"), which the shell then fails to find.
+        $phpBinary = defined('PHP_BINARY') ? PHP_BINARY : PHP_BINDIR . DIRECTORY_SEPARATOR . 'php';
+
+        $command = escapeshellarg($phpBinary) . ' -r ' . escapeshellarg($script);
+
         $process = proc_open(
-            [PHP_BINARY, '-r', $script],
-            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+            $command,
+            array(1 => array('pipe', 'w'), 2 => array('pipe', 'w')),
             $pipes
         );
 
-        $this->assertIsResource($process);
+        $this->assertIsResourceCompat($process);
 
         $stdout = stream_get_contents($pipes[1]);
         $stderr = stream_get_contents($pipes[2]);
@@ -266,7 +279,7 @@ PHP;
         $exitCode = proc_close($process);
 
         $this->assertNotSame(0, $exitCode, 'An unknown command should exit non-zero.');
-        $this->assertStringContainsString('nope:such', $stderr);
+        $this->assertStringContainsStringCompat('nope:such', $stderr);
         $this->assertSame('', trim($stdout), 'The error message must not be written to stdout.');
     }
 }

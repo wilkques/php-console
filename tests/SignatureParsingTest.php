@@ -24,7 +24,8 @@ class SignatureParsingTest extends TestCase
         $helper = $command->getHelper();
 
         $this->assertSame('deploy', $helper['command']);
-        $this->assertSame(['env'], $command->toArray()['arguments']);
+        $signature = $command->toArray();
+        $this->assertSame(array('env'), $signature['arguments']);
     }
 
     /**
@@ -33,9 +34,11 @@ class SignatureParsingTest extends TestCase
      */
     public function test_empty_signature_raises_invalid_signature_exception()
     {
-        $this->expectException(InvalidSignatureException::class);
+        $this->expectExceptionCompat('Wilkques\Console\Exceptions\InvalidSignatureException');
 
-        (new SignatureCommand(''))->getHelper();
+        $command = new SignatureCommand('');
+
+        $command->getHelper();
     }
 
     /**
@@ -49,21 +52,24 @@ class SignatureParsingTest extends TestCase
     {
         $command = new SignatureCommand('cmd {--dsn=mysql:host=localhost : DSN}');
 
-        $this->assertSame('mysql:host=localhost', $command->toArray()['options']['dsn']);
+        $signature = $command->toArray();
+        $this->assertSame('mysql:host=localhost', $signature['options']['dsn']);
     }
 
     public function test_default_value_containing_colon_is_not_truncated_time()
     {
         $command = new SignatureCommand('cmd {--time=10:30 : time}');
 
-        $this->assertSame('10:30', $command->toArray()['options']['time']);
+        $signature = $command->toArray();
+        $this->assertSame('10:30', $signature['options']['time']);
     }
 
     public function test_default_value_containing_colon_is_not_truncated_url()
     {
         $command = new SignatureCommand('cmd {--url=https://x : endpoint}');
 
-        $this->assertSame('https://x', $command->toArray()['options']['url']);
+        $signature = $command->toArray();
+        $this->assertSame('https://x', $signature['options']['url']);
     }
 
     /**
@@ -90,7 +96,7 @@ class SignatureParsingTest extends TestCase
         // The dangling "--force : force it" line lives outside of any
         // "{...}" braces, so it never becomes a token at all: this
         // signature declares zero arguments, not one with an empty name.
-        $this->assertSame([], $definitions);
+        $this->assertSame(array(), $definitions);
 
         foreach ($definitions as $definition) {
             $this->assertNotSame(
@@ -112,63 +118,73 @@ class SignatureParsingTest extends TestCase
     {
         $command = new SignatureCommand('cmd {username: 帳號}');
 
-        $this->assertSame(['username'], $command->toArray()['arguments']);
+        $signature = $command->toArray();
+        $this->assertSame(array('username'), $signature['arguments']);
     }
 
     public function test_colon_with_space_before_and_after_argument_name_splits_on_the_colon()
     {
         $command = new SignatureCommand('cmd {username : 帳號}');
 
-        $this->assertSame(['username'], $command->toArray()['arguments']);
+        $signature = $command->toArray();
+        $this->assertSame(array('username'), $signature['arguments']);
     }
 
     public function test_argument_with_no_colon_is_used_as_is()
     {
         $command = new SignatureCommand('cmd {username}');
 
-        $this->assertSame(['username'], $command->toArray()['arguments']);
+        $signature = $command->toArray();
+        $this->assertSame(array('username'), $signature['arguments']);
     }
 
     public function test_colon_immediately_after_option_name_splits_on_the_colon()
     {
         $command = new SignatureCommand('cmd {--debug: 說明}');
 
-        $this->assertArrayHasKey('debug', $command->toArray()['options']);
+        $signature = $command->toArray();
+        $this->assertArrayHasKey('debug', $signature['options']);
     }
 
     public function test_colon_with_space_before_and_after_option_name_splits_on_the_colon()
     {
         $command = new SignatureCommand('cmd {--debug : 說明}');
 
-        $this->assertArrayHasKey('debug', $command->toArray()['options']);
+        $signature = $command->toArray();
+        $this->assertArrayHasKey('debug', $signature['options']);
     }
 
     public function test_dsn_default_with_colon_not_followed_by_whitespace_is_kept_whole()
     {
         $command = new SignatureCommand('cmd {--dsn=mysql:host=localhost : DSN}');
 
-        $this->assertSame('mysql:host=localhost', $command->toArray()['options']['dsn']);
+        $signature = $command->toArray();
+        $this->assertSame('mysql:host=localhost', $signature['options']['dsn']);
     }
 
     public function test_time_default_with_colon_not_followed_by_whitespace_is_kept_whole()
     {
         $command = new SignatureCommand('cmd {--time=10:30 : 時間}');
 
-        $this->assertSame('10:30', $command->toArray()['options']['time']);
+        $signature = $command->toArray();
+        $this->assertSame('10:30', $signature['options']['time']);
     }
 
     public function test_url_default_with_colon_not_followed_by_whitespace_is_kept_whole()
     {
         $command = new SignatureCommand('cmd {--url=https://x : 端點}');
 
-        $this->assertSame('https://x', $command->toArray()['options']['url']);
+        $signature = $command->toArray();
+        $this->assertSame('https://x', $signature['options']['url']);
     }
 
     public function test_option_with_no_colon_is_used_as_is()
     {
         $command = new SignatureCommand('cmd {--name=}');
 
-        $this->assertArrayHasKey('name', $command->toArray()['options']);
-        $this->assertNull($command->toArray()['options']['name']);
+        $signature = $command->toArray();
+        $this->assertArrayHasKey('name', $signature['options']);
+        $signature = $command->toArray();
+        $this->assertNull($signature['options']['name']);
     }
 }

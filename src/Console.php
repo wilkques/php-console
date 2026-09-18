@@ -8,6 +8,7 @@ use Wilkques\Console\Exceptions\CommandNotFoundException;
 use Wilkques\Console\Exceptions\ConsoleException;
 use Wilkques\Console\Exceptions\DuplicateCommandException;
 use Wilkques\Console\Exceptions\InvalidArgumentException;
+use Wilkques\Console\Support\HelperListFormatter;
 
 class Console
 {
@@ -331,13 +332,12 @@ class Console
     }
 
     /**
-     * print helper
+     * Print the registered command list to stdout, Laravel `php artisan`
+     * (no arguments) style — see HelperListFormatter.
      */
     public function getHelpers()
     {
-        $climate = new \League\CLImate\CLImate;
-
-        $climate->table($this->helpers);
+        echo HelperListFormatter::format($this->helpers);
     }
 
     /**
@@ -524,9 +524,17 @@ class Console
         $lastIsArray = $lastDefinition ? $lastDefinition['array'] : false;
 
         if (!$lastIsArray && $given > count($argumentDefinitions)) {
+            // Not array_column(): it's a native function only from PHP
+            // 5.5+, and this package's floor is 5.3.
+            $names = array();
+
+            foreach ($argumentDefinitions as $definition) {
+                $names[] = $definition['name'];
+            }
+
             throw new InvalidArgumentException(sprintf(
                 'Too many arguments, expected arguments "%s".',
-                implode('", "', array_column($argumentDefinitions, 'name'))
+                implode('", "', $names)
             ));
         }
 

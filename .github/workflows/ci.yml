@@ -6,41 +6,49 @@ on:
   pull_request:
 
 jobs:
-  # composer.json declares "php": ">=5.5". PHPUnit 9.6 (require-dev) needs
-  # PHP >= 7.3, so anything below that can only be syntax-checked, never run
-  # through composer install + phpunit — see the "test" job below.
+  # composer.json declares "php": ">=5.3" and, as of this package's rewrite
+  # to replace league/climate's help-listing table with a self-contained
+  # formatter (src/Support/HelperListFormatter.php), that's the real floor
+  # too — league/climate was this package's only PHP 7.3+ dependency (a
+  # hard "require", not "require-dev"; it itself declared
+  # "php": "^7.3 || ^8.0"), so composer install could never actually
+  # succeed below 7.3 no matter what composer.json's own "php" constraint
+  # said. Removing it, and converting the handful of PHP 5.4+ constructs
+  # `[]` short arrays, `func()['key']` call-result dereferencing,
+  # `(new Foo())->bar()` new-then-call chaining, `array_column()` in
+  # src/, plus `::class` (5.5+) in tests/ — drops the real floor all the
+  # way to the declared 5.3.
   #
-  # 5.5 itself has no official Docker image (it is long EOL and was removed
-  # from Docker Hub), so 5.6 is the lowest version this can actually verify.
-  # Runtime dependency resolution WAS confirmed for the declared 5.5 floor
-  # via `composer update --dry-run` with config.platform.php=5.5.38, which
-  # resolves league/climate to 3.2.4.
+  # composer.json's require-dev also pins "phpunit/phpunit": "*" (not a
+  # fixed version), so composer resolves whichever major version the
+  # running PHP can actually install — PHPUnit 4.8 on 5.3, up through
+  # whatever's newest on 8.5+ — and tests/TestCase.php picks the right
+  # setUp()/tearDown() shape (and tests/Compat/*.php the right assertion/
+  # expectation method names) for whatever actually got installed, at
+  # runtime via reflection / method_exists() (see tests/bootstrap.php).
   #
-  # These run via plain `docker run` rather than GitHub's `container:` job
-  # option: old PHP images predate the Node.js runtime the Actions runner
-  # injects into job containers, which would break actions/checkout.
-  syntax-check:
-    name: "Syntax check (PHP ${{ matrix.php }})"
+  # 5.3 needs its own job rather than a matrix entry alongside the others
+  # below: its image's glibc predates the Node.js runtime the Actions
+  # runner injects into job `container:`s (and into `shivammathur/setup-
+  # php`'s own installation), which would break both actions/checkout and
+  # setup-php. Composer itself has the same problem one version up — 2.3+
+  # dropped PHP <7.2.5 outright — so this job downloads the last 2.2.x LTS
+  # release (which still ran on 5.3) on the host runner, then mounts it
+  # into a plain `docker run` for both `composer install` and `phpunit`.
+  test-php53:
+    name: "PHPUnit (PHP 5.3)"
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # 5.6 and 7.0 only: both were verified locally. 7.2 was left out
-        # rather than added unverified — it sits between 7.0 here and 7.4
-        # in the test job, so the coverage gap is negligible.
-        php: ['5.6', '7.0']
     steps:
       - uses: actions/checkout@v4
 
-      - name: Lint every file under src/ against PHP ${{ matrix.php }}
+      - name: Download Composer 2.2 LTS (last release supporting PHP 5.3)
+        run: curl -sSL https://getcomposer.org/download/2.2.25/composer.phar -o composer53.phar
+
+      - name: Install dependencies and run test suite on PHP 5.3
         run: |
-          docker run --rm -v "$PWD":/app -w /app php:${{ matrix.php }}-cli sh -c '
-            status=0
-            for f in $(find src -name "*.php" | sort); do
-              echo "== $f =="
-              php -l "$f" || status=1
-            done
-            exit $status
+          docker run --rm -v "$PWD":/app -w /app cespi/php-5.3:cli sh -c '
+            php composer53.phar install --no-interaction --prefer-dist &&
+            vendor/bin/phpunit -c phpunit.xml
           '
 
   test:
@@ -49,7 +57,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Floor is 7.4, not 7.0: PHPUnit 9.6 needs PHP >= 7.3.
+        # 5.6 up: shivammathur/setup-php and actions/checkout both work
+        # normally here, unlike on 5.3 — see test-php53 above.
         #
         # Ceiling is 8.3 for now — NOT because of anything in this package.
         # wilkques/php-helper and wilkques/container both had implicit-
@@ -66,7 +75,7 @@ jobs:
         # tagged releases containing those fixes; no other change should be
         # needed since composer.json already allows any wilkques/container
         # >=5.0.0.
-        php: ['7.4', '8.0', '8.1', '8.2', '8.3']
+        php: ['5.6', '7.0', '7.1', '7.2', '7.3', '7.4', '8.0', '8.1', '8.2', '8.3']
     steps:
       - uses: actions/checkout@v4
 

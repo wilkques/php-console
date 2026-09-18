@@ -21,9 +21,9 @@ class ExitCodeTest extends TestCase
     public function test_command_returning_nothing_yields_exit_code_zero()
     {
         $console = $this->makeConsole();
-        $console->register(SuccessCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\SuccessCommand');
 
-        $exitCode = $console->handle(['success']);
+        $exitCode = $console->handle(array('success'));
 
         $this->assertSame(0, $exitCode);
     }
@@ -31,9 +31,9 @@ class ExitCodeTest extends TestCase
     public function test_command_returning_one_propagates_as_exit_code()
     {
         $console = $this->makeConsole();
-        $console->register(FailingCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\FailingCommand');
 
-        $exitCode = $console->handle(['fail']);
+        $exitCode = $console->handle(array('fail'));
 
         $this->assertSame(1, $exitCode);
     }
@@ -41,11 +41,11 @@ class ExitCodeTest extends TestCase
     public function test_exception_thrown_in_handle_is_caught_and_yields_non_zero_exit_code()
     {
         $console = $this->makeConsole();
-        $console->register(ThrowingCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\ThrowingCommand');
 
-        $exitCode = $console->handle(['throw:boom']);
+        $exitCode = $console->handle(array('throw:boom'));
 
-        $this->assertIsInt($exitCode);
+        $this->assertIsIntCompat($exitCode);
         $this->assertNotSame(0, $exitCode);
     }
 
@@ -67,9 +67,9 @@ class ExitCodeTest extends TestCase
         ZeroCommand::$dispatched = false;
 
         $console = $this->makeConsole();
-        $console->register(ZeroCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\ZeroCommand');
 
-        $console->handle(['0']);
+        $console->handle(array('0'));
 
         $this->assertTrue(ZeroCommand::$dispatched);
     }

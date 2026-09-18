@@ -32,3 +32,43 @@ spl_autoload_register(function ($class) {
         require $file;
     }
 });
+
+// composer.json's require-dev pins "phpunit/phpunit": "*", so composer
+// resolves whichever major version the running PHP can actually install:
+// PHPUnit 4.8 on PHP 5.5, up through whatever's newest on 8.5+. Two
+// things differ across that range and both are compile-time syntax, not
+// something a runtime check alone can paper over:
+//
+//   1. PHPUnit < 6 exposes the global \PHPUnit_Framework_TestCase; PHPUnit
+//      >= 6 exposes the PSR-4 \PHPUnit\Framework\TestCase instead. Alias
+//      the old name onto the new one so every test file can consistently
+//      write `use PHPUnit\Framework\TestCase`.
+//   2. PHPUnit versions whose TestCase::setUp()/tearDown() declare a
+//      `: void` return type require every override to repeat it (PHP
+//      enforces return-type covariance); versions whose setUp() declares
+//      no return type at all will fatal ("must be compatible with") if an
+//      override adds one PHP itself doesn't support (< 7.1) anyway. So
+//      TestCase.php — the only file that overrides setUp()/tearDown() —
+//      is a thin dispatcher that requires whichever variant matches
+//      what's actually installed, decided here once via reflection on
+//      the real, installed TestCase rather than guessing from a
+//      PHP/PHPUnit version number. (Subclasses needing their own
+//      per-test setup, e.g. CommandDiscoveryTest, override TestCase's
+//      untyped additionalSetUp() hook instead of setUp() itself, so they
+//      never need this treatment.)
+if (!class_exists('PHPUnit\\Framework\\TestCase') && class_exists('PHPUnit_Framework_TestCase')) {
+    class_alias('PHPUnit_Framework_TestCase', 'PHPUnit\\Framework\\TestCase');
+}
+
+if (!defined('WILKQUES_CONSOLE_TESTS_SETUP_NEEDS_VOID')) {
+    $needsVoid = false;
+
+    // "(new Foo())->bar()" needs PHP 5.4; keep this branch itself safe
+    // even below that, for symmetry with the sibling packages.
+    if (method_exists('ReflectionMethod', 'hasReturnType')) {
+        $setUpReflection = new ReflectionMethod('PHPUnit\\Framework\\TestCase', 'setUp');
+        $needsVoid = $setUpReflection->hasReturnType();
+    }
+
+    define('WILKQUES_CONSOLE_TESTS_SETUP_NEEDS_VOID', $needsVoid);
+}

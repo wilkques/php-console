@@ -24,28 +24,32 @@ class OptionBindingTest extends TestCase
     {
         $command = new SignatureCommand('cmd {--verbose : Be noisy}');
 
-        $this->assertSame(false, $command->toArray()['options']['verbose']);
+        $signature = $command->toArray();
+        $this->assertSame(false, $signature['options']['verbose']);
     }
 
     public function test_signature_flag_explicit_default_false_stays_false()
     {
         $command = new SignatureCommand('cmd {--force=false : desc}');
 
-        $this->assertSame(false, $command->toArray()['options']['force']);
+        $signature = $command->toArray();
+        $this->assertSame(false, $signature['options']['force']);
     }
 
     public function test_signature_flag_explicit_default_true_stays_true()
     {
         $command = new SignatureCommand('cmd {--force=true : desc}');
 
-        $this->assertSame(true, $command->toArray()['options']['force']);
+        $signature = $command->toArray();
+        $this->assertSame(true, $signature['options']['force']);
     }
 
     public function test_signature_option_with_named_default_value()
     {
         $command = new SignatureCommand('cmd {--name=guest : desc}');
 
-        $this->assertSame('guest', $command->toArray()['options']['name']);
+        $signature = $command->toArray();
+        $this->assertSame('guest', $signature['options']['name']);
     }
 
     /**
@@ -57,7 +61,8 @@ class OptionBindingTest extends TestCase
     {
         $command = new SignatureCommand('cmd {--name=}');
 
-        $this->assertNull($command->toArray()['options']['name']);
+        $signature = $command->toArray();
+        $this->assertNull($signature['options']['name']);
     }
 
     public function test_full_pipeline_uses_signature_defaults_when_nothing_passed_on_cli()
@@ -65,12 +70,12 @@ class OptionBindingTest extends TestCase
         OptionsCommand::$captured = null;
 
         $console = $this->makeConsole();
-        $console->register(OptionsCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\OptionsCommand');
 
-        $console->handle(['opts:test']);
+        $console->handle(array('opts:test'));
 
         $this->assertSame(
-            ['flag' => false, 'name' => null, 'verbose' => false],
+            array('flag' => false, 'name' => null, 'verbose' => false),
             OptionsCommand::$captured
         );
     }
@@ -80,12 +85,12 @@ class OptionBindingTest extends TestCase
         OptionsCommand::$captured = null;
 
         $console = $this->makeConsole();
-        $console->register(OptionsCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\OptionsCommand');
 
-        $console->handle(['opts:test', '--flag', '--name=bob']);
+        $console->handle(array('opts:test', '--flag', '--name=bob'));
 
         $this->assertSame(
-            ['flag' => true, 'name' => 'bob', 'verbose' => false],
+            array('flag' => true, 'name' => 'bob', 'verbose' => false),
             OptionsCommand::$captured
         );
     }
@@ -101,20 +106,20 @@ class OptionBindingTest extends TestCase
      */
     public function test_undeclared_option_raises_invalid_argument_exception()
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionCompat('Wilkques\Console\Exceptions\InvalidArgumentException');
 
         $console = $this->makeConsole();
-        $console->register(OptionsCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\OptionsCommand');
 
-        $this->invoke($console, 'execute', [['opts:test', '--totally-unknown=xyz']]);
+        $this->invoke($console, 'execute', array(array('opts:test', '--totally-unknown=xyz')));
     }
 
     public function test_undeclared_option_yields_exit_code_one_via_handle()
     {
         $console = $this->makeConsole();
-        $console->register(OptionsCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\OptionsCommand');
 
-        $exitCode = $console->handle(['opts:test', '--totally-unknown=xyz']);
+        $exitCode = $console->handle(array('opts:test', '--totally-unknown=xyz'));
 
         $this->assertSame(1, $exitCode);
     }

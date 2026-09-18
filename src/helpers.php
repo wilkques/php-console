@@ -18,7 +18,7 @@ if (!function_exists('is_a_to')) {
      */
     function is_a_to($value, $callback = null)
     {
-        if (in_array($value, ['false', 'true'])) {
+        if (in_array($value, array('false', 'true'))) {
             return $value == "true" ? true : ($value == "false" ? false : false);
         }
 

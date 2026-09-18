@@ -290,7 +290,12 @@ abstract class Command implements Commandable
      */
     public function getArgumentDefinitions()
     {
-        $tokens = $this->toArray()['arguments'];
+        // Not "$this->toArray()['arguments']": dereferencing an array
+        // offset directly off a function/method call result is PHP 5.4+
+        // syntax, and this package's floor is 5.3.
+        $signature = $this->toArray();
+
+        $tokens = $signature['arguments'];
 
         $count = count($tokens);
 
@@ -390,7 +395,9 @@ abstract class Command implements Commandable
     {
         $definitions = array();
 
-        foreach ($this->toArray()['options'] as $name => $default) {
+        $signature = $this->toArray();
+
+        foreach ($signature['options'] as $name => $default) {
             $definitions[] = array('name' => $name, 'default' => $default);
         }
 

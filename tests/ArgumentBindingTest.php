@@ -22,19 +22,19 @@ class ArgumentBindingTest extends TestCase
         $definitions = $command->getArgumentDefinitions();
 
         $this->assertSame(
-            ['name' => 'first', 'optional' => false, 'default' => null, 'array' => false],
+            array('name' => 'first', 'optional' => false, 'default' => null, 'array' => false),
             $definitions[0]
         );
         $this->assertSame(
-            ['name' => 'second', 'optional' => true, 'default' => null, 'array' => false],
+            array('name' => 'second', 'optional' => true, 'default' => null, 'array' => false),
             $definitions[1]
         );
         $this->assertSame(
-            ['name' => 'third', 'optional' => true, 'default' => 'fallback', 'array' => false],
+            array('name' => 'third', 'optional' => true, 'default' => 'fallback', 'array' => false),
             $definitions[2]
         );
         $this->assertSame(
-            ['name' => 'rest', 'optional' => true, 'default' => null, 'array' => true],
+            array('name' => 'rest', 'optional' => true, 'default' => null, 'array' => true),
             $definitions[3]
         );
     }
@@ -44,16 +44,16 @@ class ArgumentBindingTest extends TestCase
         ArgumentsCommand::$captured = null;
 
         $console = $this->makeConsole();
-        $console->register(ArgumentsCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\ArgumentsCommand');
 
-        $console->handle(['args:test', 'one', 'two', 'three', 'four', 'five']);
+        $console->handle(array('args:test', 'one', 'two', 'three', 'four', 'five'));
 
-        $this->assertSame([
+        $this->assertSame(array(
             'first' => 'one',
             'second' => 'two',
             'third' => 'three',
-            'rest' => ['four', 'five'],
-        ], ArgumentsCommand::$captured);
+            'rest' => array('four', 'five'),
+        ), ArgumentsCommand::$captured);
     }
 
     public function test_full_pipeline_applies_optional_and_default_when_omitted()
@@ -61,16 +61,16 @@ class ArgumentBindingTest extends TestCase
         ArgumentsCommand::$captured = null;
 
         $console = $this->makeConsole();
-        $console->register(ArgumentsCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\ArgumentsCommand');
 
-        $console->handle(['args:test', 'one']);
+        $console->handle(array('args:test', 'one'));
 
-        $this->assertSame([
+        $this->assertSame(array(
             'first' => 'one',
             'second' => null,
             'third' => 'fallback',
-            'rest' => [],
-        ], ArgumentsCommand::$captured);
+            'rest' => array(),
+        ), ArgumentsCommand::$captured);
     }
 
     /**
@@ -89,42 +89,42 @@ class ArgumentBindingTest extends TestCase
      */
     public function test_too_many_arguments_raises_invalid_argument_exception()
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionCompat('Wilkques\Console\Exceptions\InvalidArgumentException');
 
         $console = $this->makeConsole();
-        $console->register(EchoArgCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\EchoArgCommand');
 
-        $this->invoke($console, 'execute', [['echoarg', 'one', 'two']]);
+        $this->invoke($console, 'execute', array(array('echoarg', 'one', 'two')));
     }
 
     public function test_too_many_arguments_yields_exit_code_one_via_handle()
     {
         $console = $this->makeConsole();
-        $console->register(EchoArgCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\EchoArgCommand');
 
-        $exitCode = $console->handle(['echoarg', 'one', 'two']);
+        $exitCode = $console->handle(array('echoarg', 'one', 'two'));
 
         $this->assertSame(1, $exitCode);
     }
 
     public function test_too_few_arguments_raises_invalid_argument_exception()
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionCompat('Wilkques\Console\Exceptions\InvalidArgumentException');
 
         $console = $this->makeConsole();
-        $console->register(ArgumentsCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\ArgumentsCommand');
 
         // "first" is required and nothing is supplied.
-        $this->invoke($console, 'execute', [['args:test']]);
+        $this->invoke($console, 'execute', array(array('args:test')));
     }
 
     public function test_too_few_arguments_yields_exit_code_one_via_handle()
     {
         $console = $this->makeConsole();
-        $console->register(ArgumentsCommand::class);
+        $console->register('Wilkques\Console\Tests\Fixtures\Commands\ArgumentsCommand');
 
         // "first" is required and nothing is supplied.
-        $exitCode = $console->handle(['args:test']);
+        $exitCode = $console->handle(array('args:test'));
 
         $this->assertSame(1, $exitCode);
     }
@@ -138,8 +138,10 @@ class ArgumentBindingTest extends TestCase
      */
     public function test_non_final_array_argument_raises_invalid_signature_exception()
     {
-        $this->expectException(InvalidSignatureException::class);
+        $this->expectExceptionCompat('Wilkques\Console\Exceptions\InvalidSignatureException');
 
-        (new SignatureCommand('sync {files*} {target}'))->getArgumentDefinitions();
+        $command = new SignatureCommand('sync {files*} {target}');
+
+        $command->getArgumentDefinitions();
     }
 }
