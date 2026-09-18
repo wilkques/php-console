@@ -76,6 +76,21 @@ class CommandOutputTest extends TestCase
         $this->assertSame('fyi' . PHP_EOL, $output);
     }
 
+    public function test_table_echoes_the_formatted_table()
+    {
+        ob_start();
+        $this->command->table(array('Name'), array(array('Bob')));
+        $output = ob_get_clean();
+
+        $expected = '+------+' . PHP_EOL
+            . '| Name |' . PHP_EOL
+            . '+------+' . PHP_EOL
+            . '| Bob  |' . PHP_EOL
+            . '+------+' . PHP_EOL;
+
+        $this->assertSame($expected, $output);
+    }
+
     public function test_supports_colors_is_false_during_a_phpunit_run()
     {
         $this->assertFalse($this->invoke($this->command, 'supportsColors'));

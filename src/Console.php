@@ -274,6 +274,33 @@ class Console
     }
 
     /**
+     * Programmatically dispatch another registered command and return its
+     * exit code — what a command's handle() calls (via Command::call(),
+     * which delegates here) to invoke another command.
+     *
+     * Unlike handle(), this does NOT catch ConsoleException: an unknown
+     * command name or a bad argument/option here is a mistake in the
+     * CALLING code (a typo'd command name, a bad hard-coded argument),
+     * not user input, so it should fail loudly right where the mistake
+     * is rather than be silently swallowed into a generic non-zero exit
+     * code somewhere inside whatever this call happened to be nested in.
+     * A target command's own handle() failing, on the other hand, is
+     * converted to a plain exit code exactly like top-level dispatch —
+     * see execute().
+     *
+     * @param string $command
+     * @param array  $parameters argv-style tokens, e.g. array('somearg', '--force', '--name=value')
+     *
+     * @return int
+     *
+     * @throws \Wilkques\Console\Exceptions\ConsoleException
+     */
+    public function call($command, array $parameters = array())
+    {
+        return $this->execute(array_merge(array($command), $parameters));
+    }
+
+    /**
      * @param array $commands
      *
      * @return int
@@ -298,6 +325,13 @@ class Console
 
         /** @var \Wilkques\Console\Contracts\Commandable|\Wilkques\Console\Command */
         $abstract = $this->container->make($this->commandMapping[$type]);
+
+        // Only Command (not just any Commandable) can call() another
+        // command — give it a back-reference so it can, without widening
+        // the Commandable contract itself.
+        if (method_exists($abstract, 'setConsole')) {
+            $abstract->setConsole($this);
+        }
 
         $signature = $abstract->toArray();
 

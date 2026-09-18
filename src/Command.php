@@ -39,6 +39,17 @@ abstract class Command implements Commandable
     protected $inputStream;
 
     /**
+     * The Console instance that resolved and is dispatching this command,
+     * set by Console::execute() right after building it — needed only
+     * for call()/callSilent(). A Command that's never invoked through
+     * Console (built directly by hand, e.g. in a test) simply can't call
+     * other commands; call() documents that.
+     *
+     * @var \Wilkques\Console\Console|null
+     */
+    protected $console;
+
+    /**
      * Command Explanation
      *
      * @var string
@@ -473,6 +484,20 @@ abstract class Command implements Commandable
     }
 
     /**
+     * Print an ASCII box-drawn table — see
+     * \Wilkques\Console\Support\TableFormatter for the exact format.
+     *
+     * @param array $headers
+     * @param array $rows
+     *
+     * @return void
+     */
+    public function table(array $headers, array $rows)
+    {
+        echo \Wilkques\Console\Support\TableFormatter::format($headers, $rows);
+    }
+
+    /**
      * @param string $message
      * @param string $colorCode SGR foreground color code, e.g. "32" for green
      *
@@ -662,5 +687,74 @@ abstract class Command implements Commandable
         }
 
         return trim($line);
+    }
+
+    /**
+     * Set by Console::execute() right after resolving this command — not
+     * meant to be called by hand.
+     *
+     * @param \Wilkques\Console\Console $console
+     *
+     * @return static
+     */
+    public function setConsole(Console $console)
+    {
+        $this->console = $console;
+
+        return $this;
+    }
+
+    /**
+     * Dispatch another registered command from inside this one's
+     * handle(), returning its exit code. See Console::call() for the
+     * exact rules on what throws vs. what comes back as an exit code.
+     *
+     * @param string $command
+     * @param array  $parameters argv-style tokens, e.g. array('somearg', '--force', '--name=value')
+     *
+     * @return int
+     *
+     * @throws \Wilkques\Console\Exceptions\ConsoleException
+     * @throws \RuntimeException if this Command was never dispatched through a Console (see $console)
+     */
+    public function call($command, array $parameters = array())
+    {
+        if ($this->console === null) {
+            throw new \RuntimeException(
+                'Cannot call another command: this command was not dispatched through a Console instance.'
+            );
+        }
+
+        return $this->console->call($command, $parameters);
+    }
+
+    /**
+     * Same as call(), but discards anything the called command writes via
+     * line()/info()/error()/warn()/comment() — its exit code still comes
+     * back normally.
+     *
+     * @param string $command
+     * @param array  $parameters
+     *
+     * @return int
+     *
+     * @throws \Wilkques\Console\Exceptions\ConsoleException
+     * @throws \RuntimeException if this Command was never dispatched through a Console (see $console)
+     */
+    public function callSilent($command, array $parameters = array())
+    {
+        ob_start();
+
+        try {
+            $exitCode = $this->call($command, $parameters);
+        } catch (\Exception $e) {
+            ob_end_clean();
+
+            throw $e;
+        }
+
+        ob_end_clean();
+
+        return $exitCode;
     }
 }

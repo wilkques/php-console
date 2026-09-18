@@ -21,6 +21,10 @@ namespace Wilkques\Console\Support;
  * package's real installable floor to 7.3 even though composer.json (and
  * src/'s own syntax) claim 5.5. Removing it drops the real floor back to
  * what's actually declared.
+ *
+ * The command column is padded with DisplayWidth (terminal columns), not
+ * strlen() (bytes), so a command name containing CJK/fullwidth text still
+ * lines up against the rest.
  */
 class HelperListFormatter
 {
@@ -116,7 +120,7 @@ class HelperListFormatter
         $length = 0;
 
         foreach ($helpers as $helper) {
-            $length = max($length, strlen($helper['command']));
+            $length = max($length, DisplayWidth::width($helper['command']));
         }
 
         return $length;
@@ -130,7 +134,7 @@ class HelperListFormatter
      */
     protected static function formatRow($helper, $width)
     {
-        $row = '  ' . str_pad($helper['command'], $width);
+        $row = '  ' . DisplayWidth::pad($helper['command'], $width);
 
         if ($helper['description'] !== null && $helper['description'] !== '') {
             $row .= '  ' . $helper['description'];
