@@ -5,7 +5,7 @@
     "require": {
         "php": ">=5.3",
         "wilkques/container": ">=5.0.0",
-        "wilkques/php-helper": ">=5.14.0",
+        "wilkques/php-helper": ">=6.0.0",
         "wilkques/filesystem": ">=1.0.1"
     },
     "require-dev": {
