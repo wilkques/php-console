@@ -4,6 +4,7 @@ namespace Wilkques\Console;
 
 use Wilkques\Container\Container;
 use Wilkques\Filesystem\Filesystem;
+use Wilkques\Helpers\Arrays;
 use Wilkques\Console\Exceptions\CommandNotFoundException;
 use Wilkques\Console\Exceptions\ConsoleException;
 use Wilkques\Console\Exceptions\DuplicateCommandException;
@@ -559,12 +560,9 @@ class Console
 
         if (!$lastIsArray && $given > count($argumentDefinitions)) {
             // Not array_column(): it's a native function only from PHP
-            // 5.5+, and this package's floor is 5.3.
-            $names = array();
-
-            foreach ($argumentDefinitions as $definition) {
-                $names[] = $definition['name'];
-            }
+            // 5.5+, and this package's floor is 5.3. Arrays::column() is
+            // wilkques/php-helper's own 5.3-safe equivalent.
+            $names = Arrays::column($argumentDefinitions, 'name');
 
             throw new InvalidArgumentException(sprintf(
                 'Too many arguments, expected arguments "%s".',

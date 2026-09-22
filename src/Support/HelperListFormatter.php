@@ -2,6 +2,8 @@
 
 namespace Wilkques\Console\Support;
 
+use Wilkques\Helpers\Arrays;
+
 /**
  * Formats the registered command list the way `php artisan` (no
  * arguments) does under Laravel: an "Available commands:" heading,
@@ -91,23 +93,10 @@ class HelperListFormatter
         }
 
         foreach ($groups as $namespace => $namespaceHelpers) {
-            usort($namespaceHelpers, array(__CLASS__, 'compareByCommand'));
-
-            $groups[$namespace] = $namespaceHelpers;
+            $groups[$namespace] = Arrays::sort($namespaceHelpers, 'command');
         }
 
         return $groups;
-    }
-
-    /**
-     * @param array $a
-     * @param array $b
-     *
-     * @return int
-     */
-    protected static function compareByCommand($a, $b)
-    {
-        return strcmp($a['command'], $b['command']);
     }
 
     /**
