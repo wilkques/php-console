@@ -134,9 +134,7 @@ class Console
      */
     public function boot()
     {
-        $files = $this->scanConsoleDir(
-            $this->filesystem->directories($this->getCommandRootPath())
-        );
+        $files = $this->scanConsoleDir($this->getCommandRootPath());
 
         foreach ($files as $path) {
             $abstract = $this->getCommandClass($path);
@@ -378,6 +376,11 @@ class Console
     /**
      * scan console dir
      *
+     * Delegates the recursive walk to Filesystem::allFiles() (built on
+     * RecursiveIteratorIterator) instead of hand-rolling the recursion —
+     * avoids the O(n * depth) array_merge()-per-level cost a manual
+     * recursive accumulator would have.
+     *
      * @param string|string[] $dirs
      *
      * @return array
@@ -386,24 +389,11 @@ class Console
     {
         $item = array();
 
-        foreach ($dirs as $path) {
-            if (!$path instanceof \SplFileInfo)
-                $path = new \SplFileInfo($path);
-
-            if ($path->isDir()) {
-                $item = array_merge($item, $this->scanConsoleDir(
-                    $this->filesystem->searchInDirectory($path)
-                ));
-
-                continue;
-            }
-
-            $extension = $path->getExtension();
-
-            $extension = strtolower($extension);
-
-            if ($extension == 'php') {
-                $item[] = $path->getPathname();
+        foreach ((array) $dirs as $dir) {
+            foreach ($this->filesystem->allFiles($dir) as $file) {
+                if (strtolower(pathinfo($file, PATHINFO_EXTENSION)) === 'php') {
+                    $item[] = $file;
+                }
             }
         }
 
