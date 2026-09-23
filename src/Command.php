@@ -50,6 +50,19 @@ abstract class Command implements Commandable
     protected $console;
 
     /**
+     * Total steps of the progress bar currently in progress, or null
+     * between progressFinish() and the next progressStart().
+     *
+     * @var int|null
+     */
+    protected $progressTotal;
+
+    /**
+     * @var int
+     */
+    protected $progressCurrent = 0;
+
+    /**
      * Command Explanation
      *
      * @var string
@@ -498,6 +511,118 @@ abstract class Command implements Commandable
     }
 
     /**
+     * Start a progress bar of $total steps and render it at 0%.
+     *
+     * @param int $total
+     *
+     * @return void
+     */
+    public function progressStart($total)
+    {
+        $this->progressTotal = max((int) $total, 0);
+
+        $this->progressCurrent = 0;
+
+        if ($this->isInteractiveOutput()) {
+            echo "\r" . $this->formatProgress();
+        }
+    }
+
+    /**
+     * Advance the progress bar by $step and redraw it.
+     *
+     * @param int $step
+     *
+     * @return void
+     */
+    public function progressAdvance($step = 1)
+    {
+        if ($this->progressTotal === null) {
+            return;
+        }
+
+        $this->progressCurrent = min($this->progressCurrent + $step, $this->progressTotal);
+
+        if ($this->isInteractiveOutput()) {
+            echo "\r" . $this->formatProgress();
+        }
+    }
+
+    /**
+     * Finish the progress bar at 100%, print one final summary line (even
+     * when output isn't a terminal — useful in a log file), and reset
+     * state so a later progressStart() begins clean.
+     *
+     * @return void
+     */
+    public function progressFinish()
+    {
+        if ($this->progressTotal === null) {
+            return;
+        }
+
+        $this->progressCurrent = $this->progressTotal;
+
+        echo ($this->isInteractiveOutput() ? "\r" : '') . $this->formatProgress() . PHP_EOL;
+
+        $this->progressTotal = null;
+
+        $this->progressCurrent = 0;
+    }
+
+    /**
+     * Run $callback once per item in $items, advancing a progress bar in
+     * between each call, then return $items untouched — mirrors Laravel's
+     * Command::withProgressBar().
+     *
+     * @param array    $items
+     * @param \Closure $callback
+     *
+     * @return array
+     */
+    public function withProgressBar(array $items, \Closure $callback)
+    {
+        $this->progressStart(count($items));
+
+        foreach ($items as $key => $item) {
+            $callback($item, $key);
+
+            $this->progressAdvance();
+        }
+
+        $this->progressFinish();
+
+        return $items;
+    }
+
+    /**
+     * Render the current progress state as a single fixed-width line —
+     * shared by progressStart()/Advance()/Finish() so all three stay in
+     * sync.
+     *
+     * Only progressStart()/Advance() gate this behind isInteractiveOutput()
+     * (\r-redraw would otherwise spam a pipe/log file with one line per
+     * step); progressFinish() always prints its line regardless, so a
+     * non-interactive run still leaves one summary behind.
+     *
+     * @return string
+     */
+    protected function formatProgress()
+    {
+        $total = $this->progressTotal;
+
+        $percent = $total ? (int) floor(($this->progressCurrent / $total) * 100) : 100;
+
+        $width = 28;
+
+        $filled = $total ? (int) floor(($this->progressCurrent / $total) * $width) : $width;
+
+        $bar = str_repeat('=', $filled) . str_repeat('-', max($width - $filled, 0));
+
+        return sprintf('%3d%% [%s] %d/%d', $percent, $bar, $this->progressCurrent, $total);
+    }
+
+    /**
      * @param string $message
      * @param string $colorCode SGR foreground color code, e.g. "32" for green
      *
@@ -529,6 +654,21 @@ abstract class Command implements Commandable
             return false;
         }
 
+        return $this->isInteractiveOutput();
+    }
+
+    /**
+     * Whether STDOUT is attached to a real terminal rather than piped or
+     * redirected to a file — the same detection supportsColors() uses for
+     * ANSI color codes, factored out because progressStart()/Advance()/
+     * Finish() also need it (for \r redraw) independently of color
+     * support, since NO_COLOR should silence colors without also
+     * silencing the progress bar's redraw behavior.
+     *
+     * @return bool
+     */
+    protected function isInteractiveOutput()
+    {
         if (!defined('STDOUT')) {
             return false;
         }
@@ -642,6 +782,71 @@ abstract class Command implements Commandable
 
             $this->error('Invalid choice, please try again.');
         }
+    }
+
+    /**
+     * Prompt for a line of input like ask(), but suppress the terminal's
+     * usual character echo while it's typed — for passwords/tokens that
+     * shouldn't be visible on screen or end up in a scrollback/tmux log.
+     *
+     * Falls back to a plain, visible ask() (no default hint printed)
+     * whenever there is nothing to hide from: input redirected from a
+     * test's setInputStream(), a non-POSIX platform, or STDOUT not a real
+     * terminal — see canHideInput().
+     *
+     * @param string $question
+     *
+     * @return string|null
+     */
+    public function secret($question)
+    {
+        echo $question . ': ';
+
+        $hide = $this->canHideInput();
+
+        if ($hide) {
+            shell_exec('stty -echo');
+        }
+
+        $answer = $this->readLine();
+
+        if ($hide) {
+            shell_exec('stty echo');
+
+            echo PHP_EOL;
+        }
+
+        return $answer === '' ? null : $answer;
+    }
+
+    /**
+     * Whether secret() can actually suppress terminal echo. Requires a
+     * POSIX shell (`stty`, toggled via shell_exec()) and a real terminal
+     * on both ends — there's no portable way to hide input in plain PHP
+     * on Windows without a compiled helper, which this package's PHP 5.3
+     * floor and zero-dependency goal both rule out.
+     *
+     * @return bool
+     */
+    protected function canHideInput()
+    {
+        // An explicit setInputStream() (real STDIN untouched) means
+        // toggling the process's controlling terminal via `stty` would
+        // affect the wrong stream and serves no purpose — most notably in
+        // this package's own test suite.
+        if ($this->inputStream !== null) {
+            return false;
+        }
+
+        if (stripos(PHP_OS, 'WIN') === 0) {
+            return false;
+        }
+
+        if (!function_exists('shell_exec')) {
+            return false;
+        }
+
+        return $this->isInteractiveOutput();
     }
 
     /**

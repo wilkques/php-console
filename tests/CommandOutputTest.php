@@ -91,6 +91,76 @@ class CommandOutputTest extends TestCase
         $this->assertSame($expected, $output);
     }
 
+    /**
+     * progressStart()/Advance() redraw via "\r" only when isInteractiveOutput()
+     * is true, so under PHPUnit (never a real tty, per the class docblock
+     * above) they produce no output at all — only progressFinish() always
+     * prints its one summary line, tty or not.
+     */
+    public function test_progress_start_and_advance_produce_no_output_when_not_a_tty()
+    {
+        ob_start();
+        $this->command->progressStart(5);
+        $this->command->progressAdvance();
+        $this->command->progressAdvance(2);
+        $output = ob_get_clean();
+
+        $this->assertSame('', $output);
+    }
+
+    public function test_progress_advance_and_finish_are_no_ops_before_progress_start()
+    {
+        ob_start();
+        $this->command->progressAdvance();
+        $this->command->progressFinish();
+        $output = ob_get_clean();
+
+        $this->assertSame('', $output);
+    }
+
+    public function test_progress_finish_prints_a_plain_summary_line_when_not_a_tty()
+    {
+        ob_start();
+        $this->command->progressStart(4);
+        $this->command->progressAdvance(4);
+        $this->command->progressFinish();
+        $output = ob_get_clean();
+
+        $bar = str_repeat('=', 28);
+
+        $this->assertSame('100% [' . $bar . '] 4/4' . PHP_EOL, $output);
+    }
+
+    public function test_progress_bar_with_zero_total_finishes_at_full_bar()
+    {
+        ob_start();
+        $this->command->progressStart(0);
+        $this->command->progressFinish();
+        $output = ob_get_clean();
+
+        $bar = str_repeat('=', 28);
+
+        $this->assertSame('100% [' . $bar . '] 0/0' . PHP_EOL, $output);
+    }
+
+    public function test_with_progress_bar_calls_the_callback_for_each_item_and_returns_them_unchanged()
+    {
+        $seen = array();
+
+        ob_start();
+        $result = $this->command->withProgressBar(array('a', 'b', 'c'), function ($item, $key) use (&$seen) {
+            $seen[$key] = $item;
+        });
+        $output = ob_get_clean();
+
+        $this->assertSame(array('a', 'b', 'c'), $result);
+        $this->assertSame(array('a', 'b', 'c'), $seen);
+
+        $bar = str_repeat('=', 28);
+
+        $this->assertSame('100% [' . $bar . '] 3/3' . PHP_EOL, $output);
+    }
+
     public function test_supports_colors_is_false_during_a_phpunit_run()
     {
         $this->assertFalse($this->invoke($this->command, 'supportsColors'));

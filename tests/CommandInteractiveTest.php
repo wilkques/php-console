@@ -164,4 +164,62 @@ class CommandInteractiveTest extends TestCase
         $this->assertSame('green', $answer);
         $this->assertStringContainsStringCompat('Invalid choice', $output);
     }
+
+    /**
+     * secret() falls back to a plain, visible read whenever
+     * setInputStream() is in effect (see Command::canHideInput()) — real
+     * STDIN is untouched, so there is nothing for `stty` to hide and
+     * toggling it would affect the wrong stream. That fallback is what
+     * makes secret() testable here at all, same as ask()/confirm()/choice().
+     */
+    public function test_secret_returns_the_trimmed_answer()
+    {
+        $this->feed("hunter2\n");
+
+        ob_start();
+        $answer = $this->command->secret('Password');
+        ob_get_clean();
+
+        $this->assertSame('hunter2', $answer);
+    }
+
+    public function test_secret_returns_null_on_blank_answer()
+    {
+        $this->feed("\n");
+
+        ob_start();
+        $answer = $this->command->secret('Password');
+        ob_get_clean();
+
+        $this->assertNull($answer);
+    }
+
+    public function test_secret_returns_null_at_eof()
+    {
+        $this->feed('');
+
+        ob_start();
+        $answer = $this->command->secret('Password');
+        ob_get_clean();
+
+        $this->assertNull($answer);
+    }
+
+    public function test_secret_prints_only_the_question_with_no_default_hint()
+    {
+        $this->feed("hunter2\n");
+
+        ob_start();
+        $this->command->secret('Password');
+        $output = ob_get_clean();
+
+        $this->assertSame('Password: ', $output);
+    }
+
+    public function test_can_hide_input_is_false_once_an_input_stream_is_set()
+    {
+        $this->feed("hunter2\n");
+
+        $this->assertFalse($this->invoke($this->command, 'canHideInput'));
+    }
 }
