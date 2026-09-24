@@ -3,6 +3,8 @@
 [![Latest Stable Version](https://poser.pugx.org/wilkques/console/v/stable)](https://packagist.org/packages/wilkques/console)
 [![License](https://poser.pugx.org/wilkques/console/license)](https://packagist.org/packages/wilkques/console)
 
+English | [繁體中文](README_ZH.md)
+
 ````
 composer require wilkques/console
 ````
